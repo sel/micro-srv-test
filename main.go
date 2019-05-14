@@ -34,12 +34,11 @@ type service struct {
 func (s *service) Hello(ctx context.Context, req *greet.HelloRequest) (*greet.HelloResponse, error) {
 	log := s.log.WithFields(logrus.Fields{"op": "Hello", "name": req.Name})
 	log.Info("Called Hello")
-
+	opsProcessed.Inc()
 	if err := s.queryForUser(req.Name); err != nil {
 		log.Error(err)
 		return nil, err
 	}
-	opsProcessed.Inc()
 	return &greet.HelloResponse{Greeting: fmt.Sprintf("Hello %s!", req.Name)}, nil
 }
 
@@ -47,8 +46,7 @@ func (s *service) queryForUser(userName string) error {
 	//TODO: Use context for timeout
 	row := s.db.QueryRow("SELECT name FROM users WHERE name=$1", userName)
 	var name string
-	err := row.Scan(&name)
-	if err == sql.ErrNoRows {
+	if err := row.Scan(&name); err == sql.ErrNoRows {
 		return fmt.Errorf("Unknown user %q", userName)
 	} else if err != nil {
 		return fmt.Errorf("Failed to fetch results: %v", err)
@@ -60,13 +58,13 @@ func main() {
 	app := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "grpc-port",
+				Name:    "grpc-address",
 				Value:   ":8080",
 				Usage:   "Port on which to listen for gRPC connections",
 				EnvVars: []string{"GRPC_ADDRESS"},
 			},
 			&cli.StringFlag{
-				Name:    "metrics-port",
+				Name:    "metrics-address",
 				Value:   ":2112",
 				Usage:   "Port on which to provide metrics to prometheus",
 				EnvVars: []string{"METRICS_ADDRESS"},
@@ -119,6 +117,5 @@ func main() {
 			return nil
 		},
 	}
-
 	app.Run(os.Args)
 }
